@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 
-def numpy_image_to_tensor(image: np.ndarray) -> torch.Tensor:
+def image_numpy_to_tensor(image: np.ndarray) -> torch.Tensor:
     """Convert a NumPy image array to a PyTorch tensor.
 
     Args:
@@ -15,12 +15,10 @@ def numpy_image_to_tensor(image: np.ndarray) -> torch.Tensor:
         msg = "Input image must have 3 dimensions (H, W, C)."
         raise ValueError(msg)
     # Convert from HWC to CHW format
-    image_chw = np.transpose(image, (2, 0, 1))
-    # Convert to torch tensor
-    return torch.from_numpy(image_chw).float()
+    return torch.tensor(image).permute(2, 0, 1)
 
 
-def tensor_image_to_numpy(image_tensor: torch.Tensor) -> np.ndarray:
+def image_tensor_to_numpy(image_tensor: torch.Tensor) -> np.ndarray:
     """Convert a PyTorch tensor image to a NumPy array.
 
     Args:
@@ -36,3 +34,21 @@ def tensor_image_to_numpy(image_tensor: torch.Tensor) -> np.ndarray:
     image_np = image_tensor.cpu().numpy()
     # Convert from CHW to HWC format
     return np.ascontiguousarray(np.transpose(image_np, (1, 2, 0)))
+
+
+def image_scale_to_uint8_numpy(image: np.ndarray) -> np.ndarray:
+    """Convert a float image in [0, 1] to uint8 in [0, 255].
+
+    Args:
+        image (np.ndarray): Input image as a NumPy array with float values in [0, 1].
+
+    Returns:
+        np.ndarray: Image as a NumPy array with uint8 values in [0, 255].
+    """
+    if not np.issubdtype(image.dtype, np.floating):
+        msg = "Input image must have float dtype."
+        raise ValueError(msg)
+    if image.min() < 0.0 or image.max() > 1.0:
+        msg = "Input image values must be in the range [0, 1]."
+        raise ValueError(msg)
+    return (image * 255).astype(np.uint8)

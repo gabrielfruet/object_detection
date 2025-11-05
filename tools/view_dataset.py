@@ -4,9 +4,9 @@ from pathlib import Path
 import click
 import cv2
 import supervision as sv
-import torch
 
 from det.datasets.coco import CocoDataset
+from det.utils.img import image_scale_to_uint8_numpy, image_tensor_to_numpy
 
 atexit.register(cv2.destroyAllWindows)
 
@@ -19,7 +19,7 @@ def main(dataset_path: Path):
     cv2.namedWindow("Dataset Viewer", cv2.WINDOW_NORMAL)
     box_annotator = sv.BoxAnnotator(thickness=2)
     for detection_bundle in coco_dataset:
-        image = (detection_bundle["image"] * 255).to(torch.uint8).permute(1, 2, 0).numpy()
+        image = image_scale_to_uint8_numpy(image_tensor_to_numpy(detection_bundle["image"]))
         xyxy = detection_bundle["boxes"].numpy()
         labels = detection_bundle["labels"].numpy()
 

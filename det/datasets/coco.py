@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING, cast
 import supervision as sv
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms.v2 import Compose, Resize, ToDtype, ToImage
-from torchvision.tv_tensors import BoundingBoxes, BoundingBoxFormat, Image
+from torchvision.transforms.v2 import Compose, ToDtype, ToImage, Transform
+
+from det.utils.img import image_numpy_to_tensor
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -19,6 +20,42 @@ if TYPE_CHECKING:
         ImageTensor,
         LabelsTensor,
     )
+
+
+class ResizeWithBoundingBox(Transform):
+    size: tuple[int, int]
+
+    def __init__(self, size: tuple[int, int]) -> None:
+        super().__init__()
+        self.size = size
+
+    def forward(self, detection_bundle: DetectionBundle) -> DetectionBundle:
+        image = detection_bundle["image"]
+        boxes = detection_bundle["boxes"]
+        labels = detection_bundle["labels"]
+
+        original_height, original_width = image.shape[1], image.shape[2]
+        resized_image = torch.nn.functional.interpolate(
+            image.unsqueeze(0),
+            size=self.size,
+            mode="bilinear",
+            align_corners=False,
+        ).squeeze(0)
+
+        scale_x = self.size[1] / original_width
+        scale_y = self.size[0] / original_height
+
+        resized_boxes = boxes.clone()
+        resized_boxes[:, 0] = boxes[:, 0] * scale_x
+        resized_boxes[:, 1] = boxes[:, 1] * scale_y
+        resized_boxes[:, 2] = boxes[:, 2] * scale_x
+        resized_boxes[:, 3] = boxes[:, 3] * scale_y
+
+        return {
+            "image": cast("ImageTensor", resized_image),
+            "boxes": cast("AlignedBoxesTensor", resized_boxes),
+            "labels": cast("LabelsTensor", labels),
+        }
 
 
 class CocoDataset(Dataset):
@@ -39,7 +76,7 @@ class CocoDataset(Dataset):
             [
                 ToImage(),
                 ToDtype(torch.float32, scale=True),
-                Resize(resize),
+                ResizeWithBoundingBox(size=resize),
             ]
         )
 
@@ -83,14 +120,10 @@ class CocoDataset(Dataset):
         _path, image, detections = self.detection_dataset[index]
 
         detection_bundle: DetectionBundle = {
-            "image": cast("ImageTensor", Image(torch.tensor(image).permute(2, 0, 1))),
+            "image": cast("ImageTensor", image_numpy_to_tensor(image)),
             "boxes": cast(
                 "AlignedBoxesTensor",
-                BoundingBoxes._wrap(
-                    torch.tensor(detections.xyxy).to(torch.float32),
-                    format=BoundingBoxFormat.XYXY,
-                    canvas_size=(int(image.shape[0]), int(image.shape[1])),
-                ),
+                torch.tensor(detections.xyxy, dtype=torch.float32),
             ),
             "labels": cast("LabelsTensor", torch.tensor(detections.class_id)),
         }
