@@ -12,6 +12,7 @@ import supervision as sv
 import torch
 from lightning import LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.callbacks import RichModelSummary, RichProgressBar
+from lightning.pytorch.callbacks.lr_monitor import LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
 from lightning.pytorch.tuner import Tuner
 from supervision.metrics.core import MetricTarget
@@ -208,7 +209,7 @@ class FCOSDetector(LightningModule):
         """Compute and log the final metric."""
         if self.map_metric:
             metrics = self.map_metric.compute()
-            self.log("val_mAP50", metrics.map50, prog_bar=True, logger=True, sync_dist=True)
+            self.log("mAP50/val", metrics.map50, prog_bar=True, logger=True, sync_dist=True)
 
     def on_train_epoch_end(self):
         """Compute training mAP on a small subset after each epoch."""
@@ -234,7 +235,7 @@ class FCOSDetector(LightningModule):
                     break
 
         results = metric.compute()
-        self.log("train_mAP50", results.map50, prog_bar=True, sync_dist=True)
+        self.log("mAP50/train", results.map50, prog_bar=True, sync_dist=True)
         self.model.train()
 
     def configure_optimizers(self):
@@ -353,6 +354,7 @@ def main(
         callbacks=[
             progress_bar,
             RichModelSummary(max_depth=3),
+            LearningRateMonitor(),
         ],
         logger=TensorBoardLogger(save_dir=default_root_dir, name=log_dir),
         deterministic=True,  # For reproducibility
