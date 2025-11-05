@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 import click
 import pytorch_lightning as pl
-import rich
 import supervision as sv
 import torch
 from lightning import LightningDataModule, LightningModule, Trainer
@@ -210,7 +209,6 @@ class FCOSDetector(LightningModule):
         if self.map_metric:
             metrics = self.map_metric.compute()
             self.log("val_mAP50", metrics.map50, prog_bar=True, logger=True)
-            rich.print(f"\n[bold blue]Epoch {self.current_epoch} mAP@0.5: {metrics.map50:.4f}[/bold blue]")
 
     def on_train_epoch_end(self):
         """Compute training mAP on a small subset after each epoch."""
@@ -237,7 +235,6 @@ class FCOSDetector(LightningModule):
 
         results = metric.compute()
         self.log("train_mAP50", results.map50, prog_bar=True)
-        rich.print(f"[green]Train mAP@0.5 (subset): {results.map50:.4f}[/green]")
         self.model.train()
 
     def configure_optimizers(self):
