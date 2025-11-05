@@ -278,6 +278,12 @@ class FCOSDetector(LightningModule):
     "--work-dir",
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
 )
+@click.option(
+    "--tune-batch-size",
+    is_flag=True,
+    default=False,
+    help="Automatically tune the batch size before training.",
+)
 def main(
     dataset_path: Path,
     epochs: int,
@@ -287,6 +293,7 @@ def main(
     visualize: bool,
     resume_from_checkpoint: Path | None,
     work_dir: Path | None,
+    tune_batch_size: bool,
 ):
     print("Training started with PyTorch Lightning...")
 
@@ -341,7 +348,8 @@ def main(
     )
 
     tuner = Tuner(trainer)
-    tuner.scale_batch_size(model, datamodule=data_module, mode="binsearch", init_val=batch_size, max_trials=5)
+    if tune_batch_size:
+        tuner.scale_batch_size(model, datamodule=data_module, mode="binsearch", init_val=batch_size, max_trials=5)
     if trainer.train_dataloader:
         print(f"Using batch size: {trainer.train_dataloader.batch_size}")
 
