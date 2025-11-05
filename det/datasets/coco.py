@@ -197,7 +197,7 @@ class CocoDataset(Dataset):
         boxes = detection_bundle["boxes"]
         labels = detection_bundle["labels"]
 
-        valid_indices = (boxes[:, 2] > boxes[:, 0]) & (boxes[:, 3] > boxes[:, 1])
+        valid_indices = (~torch.isclose(boxes[:, 2], boxes[:, 0])) & (~torch.isclose(boxes[:, 3], boxes[:, 1]))
 
         filtered_boxes = boxes[valid_indices]
         filtered_labels = labels[valid_indices]
