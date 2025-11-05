@@ -276,6 +276,13 @@ class FCOSDetector(LightningModule):
     type=click.Path(file_okay=False, dir_okay=True, path_type=Path),
 )
 @click.option(
+    "-lr",
+    "--learning-rate",
+    type=float,
+    default=1e-5,
+    help="Learning rate for the optimizer.",
+)
+@click.option(
     "--tune-batch-size",
     is_flag=True,
     default=False,
@@ -298,6 +305,7 @@ def main(
     work_dir: Path | None,
     tune_batch_size: bool,
     tune_lr: bool,
+    learning_rate: float,
 ):
     print("Training started with PyTorch Lightning...")
 
@@ -331,6 +339,7 @@ def main(
         num_classes=data_module.num_classes,
         class_names=data_module.class_names,
         epochs=epochs,
+        learning_rate=learning_rate,
     )
 
     # 3. Initialize Callbacks
