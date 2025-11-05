@@ -18,9 +18,9 @@ from lightning.pytorch.tuner import Tuner
 from supervision.metrics.core import MetricTarget
 from supervision.metrics.mean_average_precision import MeanAveragePrecision
 from torch.utils.data import DataLoader
-from torchvision.models import ResNet50_Weights
+from torchvision.models import MobileNet_V3_Large_Weights
 from torchvision.models.detection import FCOS
-from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from torchvision.models.detection.backbone_utils import mobilenet_backbone
 from torchvision.models.detection.rpn import AnchorGenerator
 
 # Assuming these imports are in your project structure
@@ -134,19 +134,24 @@ class FCOSDetector(LightningModule):
         self.class_names = class_names
 
         # Define model components
-        # backbone = mobilenet_backbone(
-        #     backbone_name="mobilenet_v3_large",
-        #     weights=MobileNet_V3_Large_Weights.IMAGENET1K_V1,
-        #     fpn=True,
-        # )
-        backbone = resnet_fpn_backbone(
-            backbone_name="resnet50", weights=ResNet50_Weights.IMAGENET1K_V2, returned_layers=[1, 2, 4]
+        backbone = mobilenet_backbone(
+            backbone_name="mobilenet_v3_large",
+            weights=MobileNet_V3_Large_Weights.IMAGENET1K_V1,
+            fpn=True,
         )
+        # backbone = resnet_fpn_backbone(
+        #     backbone_name="resnet50", weights=ResNet50_Weights.IMAGENET1K_V2, returned_layers=[1, 2, 4]
+        # )
+        # anchor_sizes = (
+        #     (8.0),
+        #     (16.0,),
+        #     (32.0,),
+        #     (128.0),
+        # )
         anchor_sizes = (
-            (8.0),
-            (16.0,),
-            (32.0,),
-            (128.0),
+            (64.0,),
+            (128.0,),
+            (256.0,),
         )
         aspect_ratios = ((1.0,),) * len(anchor_sizes)
         anchor_generator = AnchorGenerator(sizes=anchor_sizes, aspect_ratios=aspect_ratios)
