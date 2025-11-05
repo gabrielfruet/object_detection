@@ -180,9 +180,9 @@ class FCOSDetector(LightningModule):
         loss = sum(loss_dict.values())
 
         # Log losses
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True, sync_dist=True)
         for k, v in loss_dict.items():
-            self.log(f"train/{k}", v, on_step=True, on_epoch=False, logger=True)
+            self.log(f"train/{k}", v, on_step=True, on_epoch=False, logger=True, sync_dist=True)
 
         return loss
 
@@ -208,7 +208,7 @@ class FCOSDetector(LightningModule):
         """Compute and log the final metric."""
         if self.map_metric:
             metrics = self.map_metric.compute()
-            self.log("val_mAP50", metrics.map50, prog_bar=True, logger=True)
+            self.log("val_mAP50", metrics.map50, prog_bar=True, logger=True, sync_dist=True)
 
     def on_train_epoch_end(self):
         """Compute training mAP on a small subset after each epoch."""
@@ -234,7 +234,7 @@ class FCOSDetector(LightningModule):
                     break
 
         results = metric.compute()
-        self.log("train_mAP50", results.map50, prog_bar=True)
+        self.log("train_mAP50", results.map50, prog_bar=True, sync_dist=True)
         self.model.train()
 
     def configure_optimizers(self):
