@@ -198,7 +198,7 @@ class CocoDataset(Dataset):
         labels = detection_bundle["labels"]
 
         # using same degenerate box validation as torchvision FCOS
-        valid_indices = (boxes[:, 2:] > boxes[:, :2]).logical_not().all(dim=1)
+        valid_indices = (boxes[:, 2:] > boxes[:, :2]).all(dim=1)
 
         filtered_boxes = boxes[valid_indices]
         filtered_labels = labels[valid_indices]
