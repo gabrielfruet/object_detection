@@ -36,15 +36,6 @@ print(f"{DEBUG=}")
 # --- Utility Functions (Unchanged) ---
 
 
-def train_test_from_dataset_path(dataset_path: Path) -> tuple[Path, Path]:
-    train_path = dataset_path / "train"
-    test_path = dataset_path / "test"
-    if not train_path.exists() or not test_path.exists():
-        msg = f"Dataset path {dataset_path} must contain 'train' and 'test' subdirectories."
-        raise ValueError(msg)
-    return train_path, test_path
-
-
 def sv_detection_from_dict(data: dict) -> sv.Detections:
     xyxy = data["boxes"].cpu().numpy()
     scores = data.get("scores")
@@ -71,21 +62,21 @@ def batched_detection_bundle_to_sv_detection(batch: BatchedDetectionBundle) -> l
 
 
 class CocoDataModule(LightningDataModule):
-    def __init__(self, dataset_path: Path, batch_size: int, num_workers: int):
+    def __init__(self, dataset_path: Path, batch_size: int, num_workers: int, resize: tuple[int, int] | None = None):
         super().__init__()
         self.dataset_path = dataset_path
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.resize = resize
         self.train_dataset: CocoDataset | None = None
         self.val_dataset: CocoDataset | None = None
         self.class_names: list[str] = []
         self.num_classes: int = 0
 
     def setup(self, stage: str | None = None):
-        train_path, test_path = train_test_from_dataset_path(self.dataset_path)
         if stage == "fit" or stage is None:
-            self.train_dataset = CocoDataset(train_path)
-            self.val_dataset = CocoDataset(test_path)
+            self.train_dataset = CocoDataset(self.dataset_path, split="train", resize=self.resize)
+            self.val_dataset = CocoDataset(self.dataset_path, split="val", resize=self.resize)
             self.class_names = self.train_dataset.class_names
             self.num_classes = len(self.class_names)
 
@@ -318,9 +309,7 @@ def main(
 
     # 1. Initialize DataModule
     data_module = CocoDataModule(
-        dataset_path=dataset_path,
-        batch_size=batch_size,
-        num_workers=num_workers,
+        dataset_path=dataset_path, batch_size=batch_size, num_workers=num_workers, resize=(360, 640)
     )
     # Run setup manually to get num_classes and class_names
     data_module.setup("fit")

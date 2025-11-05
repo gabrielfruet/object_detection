@@ -30,8 +30,16 @@ pl.seed_everything(42, workers=True)
 @click.option("--device", type=click.Choice(["cpu", "cuda"]), default="cuda" if torch.cuda.is_available() else "cpu")
 @click.option("--visualize", is_flag=True, help="Visualize predictions vs ground truth")
 @click.option("--train", is_flag=True, help="Whether to run in training mode")
+@click.option("--score-thresh", type=float, default=0.5, help="Score threshold for predictions")
 def main(
-    dataset_path: Path, checkpoint: Path, batch_size: int, num_workers: int, device: str, visualize: bool, train: bool
+    dataset_path: Path,
+    checkpoint: Path,
+    batch_size: int,
+    num_workers: int,
+    device: str,
+    visualize: bool,
+    train: bool,
+    score_thresh: float,
 ):
     """Evaluate a trained FCOS model on the test set."""
     rich.print(f"[bold green]Loading model from checkpoint:[/bold green] {checkpoint}")
@@ -51,7 +59,9 @@ def main(
     )
 
     # Load model from checkpoint (class must match your training script)
-    model = FCOSDetector.load_from_checkpoint(checkpoint_path=checkpoint, map_location=device)
+    model = FCOSDetector.load_from_checkpoint(
+        checkpoint_path=checkpoint, map_location=device, score_thresh=score_thresh
+    )
     model = model.to(device)
     model.eval()
 
@@ -59,7 +69,7 @@ def main(
     metric = MeanAveragePrecision(metric_target=MetricTarget.BOXES)
 
     box_annotator = sv.BoxAnnotator(thickness=2)
-    label_annotator = sv.LabelAnnotator(text_scale=0.3, text_padding=2, text_thickness=1)
+    label_annotator = sv.RichLabelAnnotator(font_size=16)
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(data_loader):

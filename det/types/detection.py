@@ -5,6 +5,10 @@ from typing import TypedDict
 from torchtyping import TensorType
 
 ImageTensor = TensorType["C", "H", "W"]
+"""
+Shall be normalized to [0, 1] range.
+"""
+
 AlignedBoxesTensor = TensorType["N", 4]
 LabelsTensor = TensorType["N"]
 

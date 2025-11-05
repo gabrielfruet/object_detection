@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
+import albumentations as A
 import supervision as sv
 import torch
 from torch.utils.data import Dataset
@@ -20,6 +21,7 @@ if TYPE_CHECKING:
         ImageTensor,
         LabelsTensor,
     )
+    from det.types.split import DatasetSplit
 
 
 class ResizeWithBoundingBox(Transform):
@@ -58,29 +60,119 @@ class ResizeWithBoundingBox(Transform):
         }
 
 
+class AlbumentationsTransform(Transform):
+    def __init__(self, aug: A.BaseCompose) -> None:
+        super().__init__()
+        self.aug = aug
+
+    def forward(self, detection_bundle: DetectionBundle) -> DetectionBundle:
+        image = detection_bundle["image"]
+        boxes = detection_bundle["boxes"]
+        labels = detection_bundle["labels"]
+
+        image_np = image.permute(1, 2, 0).cpu().numpy()
+
+        bboxes = boxes.cpu().numpy()
+        class_labels = labels.cpu().numpy()
+        albumentations_bboxes = bboxes
+
+        # Apply augmentation
+        augmented = self.aug(
+            image=image_np,
+            bboxes=albumentations_bboxes,
+            class_labels=class_labels,
+        )
+
+        # Convert back to tensor
+        augmented_image = image_numpy_to_tensor(augmented["image"])
+
+        # Extract augmented bounding boxes and labels
+        augmented_bboxes = augmented["bboxes"]
+        augmented_class_labels = augmented["class_labels"]
+
+        augmented_boxes_tensor = torch.tensor(augmented_bboxes, dtype=torch.float32)
+        augmented_labels_tensor = torch.tensor(augmented_class_labels, dtype=torch.int64)
+
+        return {
+            "image": cast("ImageTensor", augmented_image),
+            "boxes": cast("AlignedBoxesTensor", augmented_boxes_tensor),
+            "labels": cast("LabelsTensor", augmented_labels_tensor),
+        }
+
+
 class CocoDataset(Dataset):
+    COCO_SPLIT_MAPPING: dict[DatasetSplit, str] = {
+        "train": "train",
+        "val": "valid",
+        "test": "test",
+    }
+
     images_path: Path
     annotations_path: Path
     detection_dataset: sv.DetectionDataset
     transforms: Compose
 
-    def __init__(self, dataset_path: Path, transforms=None, resize: tuple[int, int] | None = None) -> None:
-        self.images_path = dataset_path
+    def __init__(
+        self,
+        dataset_path: Path,
+        split: DatasetSplit,
+        transforms=None,
+        resize: tuple[int, int] | None = None,
+        normalize: bool = True,
+    ) -> None:
+        self.images_path = self.get_coco_split_path(dataset_path, split)
         resize = resize or (720, 1280)
         try:
-            self.annotations_path = next(dataset_path.glob("*.json"))
+            self.annotations_path = next(self.images_path.glob("*.json"))
         except StopIteration:
-            msg = f"No JSON annotation file found in {dataset_path}"
+            msg = f"No JSON annotation file found in {self.images_path}"
             raise FileNotFoundError(msg) from None
+
+        normalization = A.Normalize(
+            mean=(0.485, 0.456, 0.406),
+            std=(0.229, 0.224, 0.225),
+            max_pixel_value=1.0,
+        )
+
+        augmentations = A.Compose(
+            [
+                A.RandomResizedCrop(size=resize, scale=(0.7, 1.0), p=1.0),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.OneOf(
+                    [
+                        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.8),
+                        A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, p=0.8),
+                    ],
+                    p=0.9,
+                ),
+                A.OneOf(
+                    [
+                        # A.GaussNoise(std_range=(10.0, 50.0), p=0.5),
+                        A.GaussianBlur(blur_limit=(3, 7), p=0.5),
+                        A.MotionBlur(blur_limit=(3, 7), p=0.5),
+                    ],
+                    p=0.5,
+                ),
+                normalization if normalize else A.NoOp(),
+            ],
+            bbox_params=A.BboxParams(format="pascal_voc", label_fields=["class_labels"]),
+        )
+
         self.transforms = transforms or Compose(
             [
                 ToImage(),
                 ToDtype(torch.float32, scale=True),
                 ResizeWithBoundingBox(size=resize),
+                AlbumentationsTransform(aug=augmentations),
             ]
         )
 
         self.detection_dataset = self.to_detection_dataset()
+
+    @classmethod
+    def get_coco_split_path(cls, dataset_path: Path, dataset_split: DatasetSplit) -> Path:
+        return dataset_path / cls.COCO_SPLIT_MAPPING[dataset_split]
 
     def to_detection_dataset(self) -> sv.DetectionDataset:
         return sv.DetectionDataset.from_coco(str(self.images_path), str(self.annotations_path))
