@@ -266,7 +266,7 @@ class FCOSDetector(LightningModule):
     default="cuda" if torch.cuda.is_available() else "cpu",
     help="Device to use for training (becomes 'accelerator' in Lightning).",
 )
-@click.option("--num-workers", type=int, default=4, help="Number of DataLoader workers.")
+@click.option("--num-workers", type=int, default=os.cpu_count(), help="Number of DataLoader workers.")
 @click.option("--visualize", is_flag=True, default=False, help="Show predictions on last epoch.")
 @click.option(
     "--resume-from-checkpoint",
