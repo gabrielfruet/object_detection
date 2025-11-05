@@ -281,6 +281,12 @@ class FCOSDetector(LightningModule):
     default=False,
     help="Automatically tune the batch size before training.",
 )
+@click.option(
+    "--tune-lr",
+    is_flag=True,
+    default=False,
+    help="Automatically tune the learning rate before training.",
+)
 def main(
     dataset_path: Path,
     epochs: int,
@@ -291,6 +297,7 @@ def main(
     resume_from_checkpoint: Path | None,
     work_dir: Path | None,
     tune_batch_size: bool,
+    tune_lr: bool,
 ):
     print("Training started with PyTorch Lightning...")
 
@@ -350,7 +357,8 @@ def main(
     if trainer.train_dataloader:
         print(f"Using batch size: {trainer.train_dataloader.batch_size}")
 
-    tuner.lr_find(model, datamodule=data_module, max_lr=0.1)
+    if tune_lr:
+        tuner.lr_find(model, datamodule=data_module, max_lr=0.1)
 
     # 5. Start Training
     trainer.fit(model, datamodule=data_module, ckpt_path=resume_from_checkpoint)
