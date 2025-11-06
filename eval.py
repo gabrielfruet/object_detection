@@ -25,11 +25,11 @@ pl.seed_everything(42, workers=True)
 @click.command()
 @click.argument("dataset_path", type=click.Path(exists=True, file_okay=False, path_type=Path))
 @click.option("--checkpoint", type=click.Path(exists=True, file_okay=True, path_type=Path), required=True)
+@click.option("--split", type=click.Choice(["train", "test", "val"]), default="test")
 @click.option("--batch-size", type=int, default=4)
 @click.option("--num-workers", type=int, default=2)
 @click.option("--device", type=click.Choice(["cpu", "cuda"]), default="cuda" if torch.cuda.is_available() else "cpu")
 @click.option("--visualize", is_flag=True, help="Visualize predictions vs ground truth")
-@click.option("--train", is_flag=True, help="Whether to run in training mode")
 @click.option("--score-thresh", type=float, default=0.5, help="Score threshold for predictions")
 def main(
     dataset_path: Path,
@@ -40,15 +40,12 @@ def main(
     visualize: bool,
     train: bool,
     score_thresh: float,
+    split: str,
 ):
     """Evaluate a trained FCOS model on the test set."""
     rich.print(f"[bold green]Loading model from checkpoint:[/bold green] {checkpoint}")
     # Load dataset
-    dataset = CocoDataset(dataset_path / "test")
-
-    if train:
-        rich.print("[bold yellow]Running in training mode (shuffling data)[/bold yellow]")
-        dataset = CocoDataset(dataset_path / "train")
+    dataset = CocoDataset(dataset_path, split=split)
 
     data_loader = DataLoader(
         dataset,
