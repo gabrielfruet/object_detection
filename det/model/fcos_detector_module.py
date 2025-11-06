@@ -14,6 +14,8 @@ from torchvision.models.detection.rpn import AnchorGenerator
 
 if TYPE_CHECKING:
     from det.types.detection import BatchedDetectionBundle
+else:
+    from det.types.detection import BoxFormat
 
 
 def batched_detection_bundle_to_sv_detection(batch: BatchedDetectionBundle) -> list[sv.Detections]:
@@ -106,6 +108,11 @@ class FCOSDetector(LightningModule):
         self.map_metric = MeanAveragePrecision(metric_target=MetricTarget.BOXES)
 
     def training_step(self, batch: BatchedDetectionBundle, batch_idx: int):
+        # FCOS only supports AABB format
+        if batch["box_format"] != BoxFormat.AABB:
+            msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+            raise ValueError(msg)
+        
         images = batch["image"]
         targets = [
             {"boxes": box.to(self.device), "labels": label.to(self.device)}
@@ -124,6 +131,11 @@ class FCOSDetector(LightningModule):
         return loss
 
     def validation_step(self, batch: BatchedDetectionBundle, batch_idx: int):
+        # FCOS only supports AABB format
+        if batch["box_format"] != BoxFormat.AABB:
+            msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+            raise ValueError(msg)
+        
         images = batch["image"]
         targets = [
             {"boxes": box.to(self.device), "labels": label.to(self.device)}
@@ -160,6 +172,11 @@ class FCOSDetector(LightningModule):
 
         with torch.no_grad():
             for batch in dataloader:
+                # FCOS only supports AABB format
+                if batch["box_format"] != BoxFormat.AABB:
+                    msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+                    raise ValueError(msg)
+                
                 images = batch["image"].to(self.device)
                 predictions = self.model(images)
                 pred_det = [sv_detection_from_dict(p) for p in predictions]

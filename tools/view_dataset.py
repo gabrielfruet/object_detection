@@ -21,7 +21,9 @@ def main(dataset_path: Path, split: str) -> None:
     box_annotator = sv.BoxAnnotator(thickness=2)
     label_annotator = sv.LabelAnnotator()
     for detection_bundle in coco_dataset:
-        image = image_scale_to_uint8_numpy(image_tensor_to_numpy(detection_bundle["image"]))
+        image = image_tensor_to_numpy(detection_bundle["image"])
+        if image.dtype != "uint8":
+            image = image_scale_to_uint8_numpy(image)
         xyxy = detection_bundle["boxes"].numpy()
         labels = detection_bundle["labels"].numpy()
 
