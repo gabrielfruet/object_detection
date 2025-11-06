@@ -13,11 +13,7 @@ from supervision.metrics.mean_average_precision import MeanAveragePrecision
 from torch.utils.data import DataLoader
 
 from det.datasets.coco import CocoDataset
-from train import (  # assuming 'train.py' contains your class definitions
-    FCOSDetector,
-    batched_detection_bundle_to_sv_detection,
-    sv_detection_from_dict,
-)
+from det.model.fcos_detector_module import FCOSDetector, sv_detection_from_dict
 
 pl.seed_everything(42, workers=True)
 
