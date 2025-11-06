@@ -38,7 +38,6 @@ def main(
     num_workers: int,
     device: str,
     visualize: bool,
-    train: bool,
     score_thresh: float,
     split: str,
 ):
