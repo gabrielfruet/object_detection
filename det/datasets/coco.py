@@ -139,21 +139,6 @@ class CocoDataset(Dataset):
                 A.RandomResizedCrop(size=resize, scale=(0.7, 1.0), p=1.0),
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
-                A.OneOf(
-                    [
-                        A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.8),
-                        A.HueSaturationValue(hue_shift_limit=20, sat_shift_limit=30, val_shift_limit=20, p=0.8),
-                    ],
-                    p=0.9,
-                ),
-                A.OneOf(
-                    [
-                        # A.GaussNoise(std_range=(10.0, 50.0), p=0.5),
-                        A.GaussianBlur(blur_limit=(3, 7), p=0.5),
-                        A.MotionBlur(blur_limit=(3, 7), p=0.5),
-                    ],
-                    p=0.5,
-                ),
                 normalization if normalize else A.NoOp(),
             ],
             bbox_params=A.BboxParams(format="pascal_voc", label_fields=["class_labels"]),
