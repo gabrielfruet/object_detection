@@ -13,7 +13,11 @@ from supervision.metrics.mean_average_precision import MeanAveragePrecision
 from torch.utils.data import DataLoader
 
 from det.datasets.coco import CocoDataset
-from det.model.fcos_detector_module import FCOSDetector, sv_detection_from_dict
+from det.model.fcos_detector_module import (
+    FCOSDetector,
+    batched_detection_bundle_to_sv_detection,
+    sv_detection_from_dict,
+)
 
 pl.seed_everything(42, workers=True)
 
@@ -65,10 +69,10 @@ def main(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(data_loader):
-            images = [img.to(device) for img in batch["image"]]
+            images = [img.to(device) for img in batch.image]
             [
                 {"boxes": box.to(device), "labels": label.to(device)}
-                for box, label in zip(batch["boxes"], batch["labels"])
+                for box, label in zip(batch.boxes, batch.labels)
             ]
 
             preds = model.model(images)
@@ -82,7 +86,7 @@ def main(
                 import cv2
                 import numpy as np
 
-                for img_tensor, pred_det, gt_det in zip(batch["image"], preds_detections, gt_detections):
+                for img_tensor, pred_det, gt_det in zip(batch.image, preds_detections, gt_detections):
                     img = img_tensor.permute(1, 2, 0).cpu().numpy()
                     img = (img * 255).astype("uint8")
 

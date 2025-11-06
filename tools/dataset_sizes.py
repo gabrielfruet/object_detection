@@ -19,7 +19,7 @@ def main(dataset_path: Path):
     coco_dataset = CocoDataset(dataset_path)
     sizes_wh = []
     for detection_bundle in track(iter(coco_dataset), description="Processing images..."):
-        xyxy = detection_bundle["boxes"].numpy()
+        xyxy = detection_bundle.boxes.numpy()
         xy1 = xyxy[:, :2]
         xy2 = xyxy[:, 2:]
         sizes_wh.append(xy2 - xy1)

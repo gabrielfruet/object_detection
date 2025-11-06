@@ -20,9 +20,9 @@ else:
 
 def batched_detection_bundle_to_sv_detection(batch: BatchedDetectionBundle) -> list[sv.Detections]:
     detections_list = []
-    for i in range(len(batch["image"])):
-        xyxy = batch["boxes"][i].cpu().numpy()
-        labels = batch["labels"][i].cpu().numpy()
+    for i in range(len(batch.image)):
+        xyxy = batch.boxes[i].cpu().numpy()
+        labels = batch.labels[i].cpu().numpy()
         detections = sv.Detections(xyxy=xyxy, class_id=labels)
         detections_list.append(detections)
     return detections_list
@@ -109,14 +109,14 @@ class FCOSDetector(LightningModule):
 
     def training_step(self, batch: BatchedDetectionBundle, batch_idx: int):
         # FCOS only supports AABB format
-        if batch["box_format"] != BoxFormat.AABB:
-            msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+        if batch.box_format != BoxFormat.AABB:
+            msg = f"FCOSDetector only supports AABB format, got {batch.box_format}"
             raise ValueError(msg)
         
-        images = batch["image"]
+        images = batch.image
         targets = [
             {"boxes": box.to(self.device), "labels": label.to(self.device)}
-            for box, label in zip(batch["boxes"], batch["labels"])
+            for box, label in zip(batch.boxes, batch.labels)
         ]
 
         # FCOS returns losses when in training mode
@@ -132,14 +132,14 @@ class FCOSDetector(LightningModule):
 
     def validation_step(self, batch: BatchedDetectionBundle, batch_idx: int):
         # FCOS only supports AABB format
-        if batch["box_format"] != BoxFormat.AABB:
-            msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+        if batch.box_format != BoxFormat.AABB:
+            msg = f"FCOSDetector only supports AABB format, got {batch.box_format}"
             raise ValueError(msg)
         
-        images = batch["image"]
+        images = batch.image
         targets = [
             {"boxes": box.to(self.device), "labels": label.to(self.device)}
-            for box, label in zip(batch["boxes"], batch["labels"])
+            for box, label in zip(batch.boxes, batch.labels)
         ]
 
         # FCOS returns predictions when in eval mode
@@ -173,11 +173,11 @@ class FCOSDetector(LightningModule):
         with torch.no_grad():
             for batch in dataloader:
                 # FCOS only supports AABB format
-                if batch["box_format"] != BoxFormat.AABB:
-                    msg = f"FCOSDetector only supports AABB format, got {batch['box_format']}"
+                if batch.box_format != BoxFormat.AABB:
+                    msg = f"FCOSDetector only supports AABB format, got {batch.box_format}"
                     raise ValueError(msg)
                 
-                images = batch["image"].to(self.device)
+                images = batch.image.to(self.device)
                 predictions = self.model(images)
                 pred_det = [sv_detection_from_dict(p) for p in predictions]
                 gt_det = batched_detection_bundle_to_sv_detection(batch)

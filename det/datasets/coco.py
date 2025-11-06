@@ -119,9 +119,9 @@ class CocoDataset(Dataset):
         return self.detection_dataset.classes
 
     def _filter_degraded_boxes(self, detection_bundle: DetectionBundle) -> DetectionBundle:
-        boxes = detection_bundle["boxes"]
-        labels = detection_bundle["labels"]
-        box_format = detection_bundle["box_format"]
+        boxes = detection_bundle.boxes
+        labels = detection_bundle.labels
+        box_format = detection_bundle.box_format
 
         # Filtering currently only supports AABB format
         if box_format != BoxFormat.AABB:
@@ -140,7 +140,7 @@ class CocoDataset(Dataset):
             filtered_labels = labels[valid_indices]
 
         return DetectionBundle(
-            image=detection_bundle["image"],
+            image=detection_bundle.image,
             boxes=filtered_boxes,
             labels=filtered_labels,
             box_format=BoxFormat.AABB,

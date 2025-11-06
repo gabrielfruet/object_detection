@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from typing import TypedDict
@@ -54,7 +53,7 @@ class DetectionBundleDict(TypedDict):
 
 
 @dataclass(frozen=True)
-class DetectionBundle(Mapping[str, torch.Tensor | BoxFormat]):
+class DetectionBundle:
     """
     A validated bundle containing image, bounding boxes, and labels for object detection.
 
@@ -65,9 +64,9 @@ class DetectionBundle(Mapping[str, torch.Tensor | BoxFormat]):
     This class provides:
     - Runtime validation of tensor shapes and types at construction
     - Format-specific validation (AABB vs XYWHR)
-    - Dict-like access for backward compatibility
-    - Easy unpacking for PyTorch models and ONNX export
+    - Explicit attribute access (.image, .boxes, .labels, .box_format)
     - Factory methods for creating from various sources
+    - as_dict() method for converting to dictionary when needed
 
     Examples:
         >>> # AABB format (axis-aligned)
@@ -86,11 +85,11 @@ class DetectionBundle(Mapping[str, torch.Tensor | BoxFormat]):
         ...     box_format=BoxFormat.XYWHR,
         ... )
         >>>
-        >>> # Dict-like access
-        >>> image = bundle["image"]
+        >>> # Attribute access
+        >>> image = bundle.image
         >>>
-        >>> # Unpacking for ONNX-compatible calls
-        >>> model(**bundle)
+        >>> # Convert to dict for unpacking (e.g., for ONNX export)
+        >>> model(**bundle.as_dict())
     """
 
     image: ImageTensor
@@ -191,53 +190,11 @@ class DetectionBundle(Mapping[str, torch.Tensor | BoxFormat]):
                 stacklevel=2,
             )
 
-    # Mapping protocol implementation for dict-like access and unpacking
-    def __getitem__(self, key: str) -> torch.Tensor | BoxFormat:
-        """Dict-like access: bundle['image'], bundle['boxes'], bundle['labels'], bundle['box_format']"""
-        if key == "image":
-            return self.image
-        if key == "boxes":
-            return self.boxes
-        if key == "labels":
-            return self.labels
-        if key == "box_format":
-            return self.box_format
-        msg = f"Key '{key}' not found. Valid keys: 'image', 'boxes', 'labels', 'box_format'"
-        raise KeyError(msg)
-
-    def __iter__(self):
-        """Iterate over keys for unpacking: **bundle"""
-        yield "image"
-        yield "boxes"
-        yield "labels"
-        yield "box_format"
-
-    def __len__(self) -> int:
-        """Number of fields"""
-        return 4
-
-    def keys(self):
-        """Return keys for dict-like operations"""
-        return ["image", "boxes", "labels", "box_format"]
-
-    def values(self):
-        """Return values for dict-like operations"""
-        return [self.image, self.boxes, self.labels, self.box_format]
-
-    def items(self):
-        """Return items for dict-like operations"""
-        return [
-            ("image", self.image),
-            ("boxes", self.boxes),
-            ("labels", self.labels),
-            ("box_format", self.box_format),
-        ]
-
     def as_dict(self) -> dict[str, torch.Tensor | BoxFormat]:
         """
         Convert to a plain dictionary.
 
-        Useful for explicit conversion when needed, though **bundle also works.
+        Useful for explicit conversion when needed (e.g., for ONNX export).
         Note: box_format is included in the dict.
         """
         return {
@@ -320,7 +277,7 @@ class BatchedDetectionBundleDict(TypedDict):
 
 
 @dataclass(frozen=True)
-class BatchedDetectionBundle(Mapping[str, torch.Tensor | list[torch.Tensor] | BoxFormat]):
+class BatchedDetectionBundle:
     """
     A validated batch of DetectionBundle objects.
 
@@ -388,48 +345,6 @@ class BatchedDetectionBundle(Mapping[str, torch.Tensor | list[torch.Tensor] | Bo
                     f"but labels has {label_tensor.shape[0]} entries"
                 )
                 raise ValueError(msg)
-
-    # Mapping protocol implementation
-    def __getitem__(self, key: str) -> torch.Tensor | list[torch.Tensor] | BoxFormat:
-        """Dict-like access: batch['image'], batch['boxes'], batch['labels'], batch['box_format']"""
-        if key == "image":
-            return self.image
-        if key == "boxes":
-            return self.boxes
-        if key == "labels":
-            return self.labels
-        if key == "box_format":
-            return self.box_format
-        msg = f"Key '{key}' not found. Valid keys: 'image', 'boxes', 'labels', 'box_format'"
-        raise KeyError(msg)
-
-    def __iter__(self):
-        """Iterate over keys for unpacking: **batch"""
-        yield "image"
-        yield "boxes"
-        yield "labels"
-        yield "box_format"
-
-    def __len__(self) -> int:
-        """Number of fields"""
-        return 4
-
-    def keys(self):
-        """Return keys for dict-like operations"""
-        return ["image", "boxes", "labels", "box_format"]
-
-    def values(self):
-        """Return values for dict-like operations"""
-        return [self.image, self.boxes, self.labels, self.box_format]
-
-    def items(self):
-        """Return items for dict-like operations"""
-        return [
-            ("image", self.image),
-            ("boxes", self.boxes),
-            ("labels", self.labels),
-            ("box_format", self.box_format),
-        ]
 
     def as_dict(self) -> dict[str, torch.Tensor | list[torch.Tensor] | BoxFormat]:
         """Convert to a plain dictionary."""
