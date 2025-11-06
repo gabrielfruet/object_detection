@@ -12,6 +12,8 @@ from torchvision.models.detection import FCOS
 from torchvision.models.detection.backbone_utils import mobilenet_backbone
 from torchvision.models.detection.rpn import AnchorGenerator
 
+from det.types.detection import BoxFormat
+
 if TYPE_CHECKING:
     from det.types.detection import BatchedDetectionBundle
 else:
