@@ -151,39 +151,24 @@ class FCOSDetector(LightningModule):
         self.validation_ground_truth.append(batch)
 
     def on_validation_epoch_end(self):
-        """Compute and log the final metric after gathering all predictions from all processes."""
+        """Compute and log the final metric."""
         if not self.validation_predictions or not self.map_metric:
             return
 
-        # Gather from all processes if distributed
-        all_predictions = self._gather_list(self.validation_predictions)
-        all_ground_truth = self._gather_list(self.validation_ground_truth)
-
-        # Convert to Detections and update metric (move to CPU only when converting)
+        # Convert and compute locally
         all_pred_detections = []
         all_gt_detections = []
-        for pred_batch, gt_batch in zip(all_predictions, all_ground_truth):
+        for pred_batch, gt_batch in zip(self.validation_predictions, self.validation_ground_truth):
             all_pred_detections.extend([sv_detection_from_dict(p) for p in pred_batch])
             all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch.to("cpu")))
 
         self.map_metric.update(all_pred_detections, all_gt_detections)
         metrics = self.map_metric.compute()
-        self.log("mAP50/val", metrics.map50, prog_bar=True, logger=True, sync_dist=False)
+        # Sync only the scalar metric value (fast, avoids gathering large objects)
+        self.log("mAP50/val", metrics.map50, prog_bar=True, logger=True, sync_dist=True)
 
         self.validation_predictions.clear()
         self.validation_ground_truth.clear()
-
-    def _gather_list(self, data: list) -> list:
-        """Gather list from all processes if distributed, otherwise return as-is."""
-        if self.trainer.num_devices > 1 and torch.distributed.is_initialized():
-            gathered = [None] * torch.distributed.get_world_size()
-            torch.distributed.all_gather_object(gathered, data)
-            result = []
-            for sublist in gathered:
-                if sublist:
-                    result.extend(sublist)
-            return result
-        return data
 
     def on_train_epoch_end(self):
         """Compute training mAP on a small subset after each epoch."""
@@ -211,19 +196,17 @@ class FCOSDetector(LightningModule):
                 if count >= self.train_eval_subset:
                     break
 
-        # Gather and convert
-        all_predictions = self._gather_list(train_predictions)
-        all_ground_truth = self._gather_list(train_ground_truth)
-
+        # Convert and compute locally
         all_pred_detections = []
         all_gt_detections = []
-        for pred_batch, gt_batch in zip(all_predictions, all_ground_truth):
+        for pred_batch, gt_batch in zip(train_predictions, train_ground_truth):
             all_pred_detections.extend([sv_detection_from_dict(p) for p in pred_batch])
             all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch.to("cpu")))
 
         metric = MeanAveragePrecision(metric_target=MetricTarget.BOXES)
         metric.update(all_pred_detections, all_gt_detections)
-        self.log("mAP50/train", metric.compute().map50, prog_bar=True, sync_dist=False)
+        # Sync only the scalar metric value (fast, avoids gathering large objects)
+        self.log("mAP50/train", metric.compute().map50, prog_bar=True, sync_dist=True)
         self.model.train()
 
     def configure_optimizers(self):
