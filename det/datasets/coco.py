@@ -129,20 +129,15 @@ class CocoDataset(Dataset):
             raise ValueError(msg)
 
         # using same degenerate box validation as torchvision FCOS
-        # Handle empty boxes case
-        if boxes.shape[0] == 0:
-            # No boxes to filter, return as-is
-            filtered_boxes = boxes
-            filtered_labels = labels
-        else:
+        if boxes.shape[0] > 0:
             valid_indices = (boxes[:, 2:] > boxes[:, :2]).all(dim=1)
-            filtered_boxes = boxes[valid_indices]
-            filtered_labels = labels[valid_indices]
+            boxes = boxes[valid_indices]
+            labels = labels[valid_indices]
 
         return DetectionBundle(
             image=detection_bundle.image,
-            boxes=filtered_boxes,
-            labels=filtered_labels,
+            boxes=boxes,
+            labels=labels,
             box_format=BoxFormat.AABB,
         )
 
@@ -151,7 +146,10 @@ class CocoDataset(Dataset):
 
         # Supervision returns numpy arrays (H, W, C) in [0, 255] uint8 format
         # Convert to format expected by albumentations
-        image_np = np.asarray(image, dtype=np.uint8)
+        # Use asarray only if not already numpy array to avoid copy
+        image_np = image if isinstance(image, np.ndarray) else np.asarray(image, dtype=np.uint8)
+        if image_np.dtype != np.uint8:
+            image_np = image_np.astype(np.uint8)
         boxes_np = detections.xyxy.astype(np.float32)
         labels_np = detections.class_id.astype(np.int64)
 
@@ -163,14 +161,20 @@ class CocoDataset(Dataset):
                 class_labels=labels_np,
             )
             image_np = augmented["image"]
-            boxes_np = np.array(augmented["bboxes"], dtype=np.float32)
-            labels_np = np.array(augmented["class_labels"], dtype=np.int64)
+            # Only convert if needed (albumentations may already return correct types)
+            boxes_np = augmented["bboxes"]
+            if not isinstance(boxes_np, np.ndarray) or boxes_np.dtype != np.float32:
+                boxes_np = np.asarray(boxes_np, dtype=np.float32)
+            labels_np = augmented["class_labels"]
+            if not isinstance(labels_np, np.ndarray) or labels_np.dtype != np.int64:
+                labels_np = np.asarray(labels_np, dtype=np.int64)
 
         # Convert to DetectionBundle
         # Albumentations returns image in (H, W, C) format, convert to (C, H, W) tensor
         image_tensor = image_numpy_to_tensor(image_np)
-        boxes_tensor = torch.tensor(boxes_np, dtype=torch.float32)
-        labels_tensor = torch.tensor(labels_np, dtype=torch.int64)
+        # Use from_numpy to avoid copy
+        boxes_tensor = torch.from_numpy(boxes_np).to(torch.float32)
+        labels_tensor = torch.from_numpy(labels_np).to(torch.int64)
 
         detection_bundle = DetectionBundle(
             image=image_tensor,

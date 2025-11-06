@@ -6,16 +6,20 @@ import sys
 from pathlib import Path
 
 import click
+import cv2
 import pytorch_lightning as pl
 import torch
 from lightning import Trainer
 from lightning.pytorch.callbacks import RichModelSummary, RichProgressBar
 from lightning.pytorch.callbacks.lr_monitor import LearningRateMonitor
 from lightning.pytorch.loggers import TensorBoardLogger
+from lightning.pytorch.profilers import PyTorchProfiler
 from lightning.pytorch.tuner import Tuner
 
 from det.datasets.datamodule import CocoDataModule
 from det.model.fcos_detector_module import FCOSDetector
+
+cv2.setNumThreads(0)
 
 # Assuming these imports are in your project structure
 
@@ -35,7 +39,7 @@ DEBUG = os.environ.get("DEBUG", "0") == "1" or "pdb" in sys.argv
     default="cuda" if torch.cuda.is_available() else "cpu",
     help="Device to use for training (becomes 'accelerator' in Lightning).",
 )
-@click.option("--num-workers", type=int, default=os.cpu_count(), help="Number of DataLoader workers.")
+@click.option("--num-workers", type=int, default=min(8, os.cpu_count() or 1), help="Number of DataLoader workers.")
 @click.option("--visualize", is_flag=True, default=False, help="Show predictions on last epoch.")
 @click.option(
     "--resume-from-checkpoint",
@@ -66,6 +70,12 @@ DEBUG = os.environ.get("DEBUG", "0") == "1" or "pdb" in sys.argv
     default=False,
     help="Automatically tune the learning rate before training.",
 )
+@click.option(
+    "--profile",
+    is_flag=True,
+    default=False,
+    help="Enable PyTorch Profiler for TensorBoard performance analysis.",
+)
 def main(
     dataset_path: Path,
     epochs: int,
@@ -78,6 +88,7 @@ def main(
     tune_batch_size: bool,
     tune_lr: bool,
     learning_rate: float,
+    profile: bool,
 ):
     print("Training started with PyTorch Lightning...")
 
@@ -117,17 +128,42 @@ def main(
     # 3. Initialize Callbacks
     progress_bar = RichProgressBar()
 
-    # 4. Initialize Trainer
+    # 4. Setup Profiler if enabled
+    profiler = None
+    if profile:
+        profiler_dir = work_dir / "profiler"
+        profiler_dir.mkdir(parents=True, exist_ok=True)
+
+        activities = [torch.profiler.ProfilerActivity.CPU]
+        if device == "cuda" and torch.cuda.is_available():
+            activities.append(torch.profiler.ProfilerActivity.CUDA)
+
+        profiler = PyTorchProfiler(
+            dirpath=str(profiler_dir),
+            filename="profile",
+            activities=activities,
+            schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+            on_trace_ready=torch.profiler.tensorboard_trace_handler(str(profiler_dir)),
+            record_shapes=True,
+            profile_memory=True,
+            with_stack=True,
+            export_to_chrome=True,
+        )
+        print(f"Profiling enabled. Traces will be saved to: {profiler_dir}")
+        print(f"View in TensorBoard: tensorboard --logdir {profiler_dir}")
+
+    # 5. Initialize Trainer
     trainer = Trainer(
         max_epochs=epochs,
         accelerator=device,
-        log_every_n_steps=1,
+        log_every_n_steps=10,
         callbacks=[
             progress_bar,
             RichModelSummary(max_depth=3),
             LearningRateMonitor(),
         ],
         logger=TensorBoardLogger(save_dir=default_root_dir, name=log_dir),
+        profiler=profiler,
         deterministic=True,  # For reproducibility
         enable_checkpointing=True,  # Saves checkpoints by default
         default_root_dir=default_root_dir,
@@ -142,8 +178,12 @@ def main(
     if tune_lr:
         tuner.lr_find(model, datamodule=data_module, max_lr=0.1)
 
-    # 5. Start Training
+    # 6. Start Training
     trainer.fit(model, datamodule=data_module, ckpt_path=resume_from_checkpoint)
+
+    if profile:
+        print("\nProfiling complete! View traces in TensorBoard:")
+        print(f"  tensorboard --logdir {work_dir / 'profiler'}")
 
     print("Training finished.")
 

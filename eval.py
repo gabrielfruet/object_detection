@@ -69,13 +69,13 @@ def main(
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(data_loader):
-            images = [img.to(device) for img in batch.image]
-            [
+            images = batch.image.to(device)
+            targets = [
                 {"boxes": box.to(device), "labels": label.to(device)}
                 for box, label in zip(batch.boxes, batch.labels)
             ]
 
-            preds = model.model(images)
+            preds = model.model(images, targets)
 
             preds_detections = [sv_detection_from_dict(pred) for pred in preds]
             gt_detections = batched_detection_bundle_to_sv_detection(batch)
@@ -86,7 +86,8 @@ def main(
                 import cv2
                 import numpy as np
 
-                for img_tensor, pred_det, gt_det in zip(batch.image, preds_detections, gt_detections):
+                for i, (pred_det, gt_det) in enumerate(zip(preds_detections, gt_detections)):
+                    img_tensor = batch.image[i]
                     img = img_tensor.permute(1, 2, 0).cpu().numpy()
                     img = (img * 255).astype("uint8")
 

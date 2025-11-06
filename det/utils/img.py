@@ -15,7 +15,8 @@ def image_numpy_to_tensor(image: np.ndarray) -> torch.Tensor:
         msg = "Input image must have 3 dimensions (H, W, C)."
         raise ValueError(msg)
     # Convert from HWC to CHW format
-    return torch.tensor(image).permute(2, 0, 1)
+    # Use from_numpy to avoid copy if possible
+    return torch.from_numpy(image).permute(2, 0, 1)
 
 
 def image_tensor_to_numpy(image_tensor: torch.Tensor) -> np.ndarray:

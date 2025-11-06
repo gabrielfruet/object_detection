@@ -148,7 +148,7 @@ class FCOSDetector(LightningModule):
 
         predictions: list[dict] = self.model(images, targets)
         self.validation_predictions.append(predictions)
-        self.validation_ground_truth.append(batch.to("cpu"))
+        self.validation_ground_truth.append(batch)
 
     def on_validation_epoch_end(self):
         """Compute and log the final metric after gathering all predictions from all processes."""
@@ -159,12 +159,12 @@ class FCOSDetector(LightningModule):
         all_predictions = self._gather_list(self.validation_predictions)
         all_ground_truth = self._gather_list(self.validation_ground_truth)
 
-        # Convert to Detections and update metric
+        # Convert to Detections and update metric (move to CPU only when converting)
         all_pred_detections = []
         all_gt_detections = []
         for pred_batch, gt_batch in zip(all_predictions, all_ground_truth):
             all_pred_detections.extend([sv_detection_from_dict(p) for p in pred_batch])
-            all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch))
+            all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch.to("cpu")))
 
         self.map_metric.update(all_pred_detections, all_gt_detections)
         metrics = self.map_metric.compute()
@@ -201,9 +201,11 @@ class FCOSDetector(LightningModule):
                     msg = f"FCOSDetector only supports AABB format, got {batch.box_format}"
                     raise ValueError(msg)
 
-                predictions = self.model(batch.image.to(self.device))
+                # Lightning handles device placement, but ensure images are on device
+                images = batch.image if batch.image.device == self.device else batch.image.to(self.device)
+                predictions = self.model(images)
                 train_predictions.append(predictions)
-                train_ground_truth.append(batch.to("cpu"))
+                train_ground_truth.append(batch)
 
                 count += len(batch.image)
                 if count >= self.train_eval_subset:
@@ -217,7 +219,7 @@ class FCOSDetector(LightningModule):
         all_gt_detections = []
         for pred_batch, gt_batch in zip(all_predictions, all_ground_truth):
             all_pred_detections.extend([sv_detection_from_dict(p) for p in pred_batch])
-            all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch))
+            all_gt_detections.extend(batched_detection_bundle_to_sv_detection(gt_batch.to("cpu")))
 
         metric = MeanAveragePrecision(metric_target=MetricTarget.BOXES)
         metric.update(all_pred_detections, all_gt_detections)
