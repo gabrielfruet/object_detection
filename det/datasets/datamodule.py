@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from lightning import LightningDataModule
 from torch.utils.data import DataLoader
 
 from det.datasets.coco import CocoDataset
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class CocoDataModule(LightningDataModule):
